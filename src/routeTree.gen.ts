@@ -10,6 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AlarmsRouteImport } from './routes/alarms'
+import { Route as AuditRouteImport } from './routes/audit'
+import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as UsersRouteImport } from './routes/users'
 import { Route as BatchesIndexRouteImport } from './routes/batches.index'
 import { Route as BatchesBatchIdRouteImport } from './routes/batches.$batchId'
 import { Route as RecipesIndexRouteImport } from './routes/recipes.index'
@@ -18,6 +22,26 @@ import { Route as RecipesRecipeIdRouteImport } from './routes/recipes.$recipeId'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AlarmsRoute = AlarmsRouteImport.update({
+  id: '/alarms',
+  path: '/alarms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuditRoute = AuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsersRoute = UsersRouteImport.update({
+  id: '/users',
+  path: '/users',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BatchesIndexRoute = BatchesIndexRouteImport.update({
@@ -43,6 +67,10 @@ const RecipesRecipeIdRoute = RecipesRecipeIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/alarms': typeof AlarmsRoute
+  '/audit': typeof AuditRoute
+  '/reports': typeof ReportsRoute
+  '/users': typeof UsersRoute
   '/batches/$batchId': typeof BatchesBatchIdRoute
   '/recipes/$recipeId': typeof RecipesRecipeIdRoute
   '/batches/': typeof BatchesIndexRoute
@@ -50,6 +78,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/alarms': typeof AlarmsRoute
+  '/audit': typeof AuditRoute
+  '/reports': typeof ReportsRoute
+  '/users': typeof UsersRoute
   '/batches/$batchId': typeof BatchesBatchIdRoute
   '/recipes/$recipeId': typeof RecipesRecipeIdRoute
   '/batches': typeof BatchesIndexRoute
@@ -58,6 +90,10 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/alarms': typeof AlarmsRoute
+  '/audit': typeof AuditRoute
+  '/reports': typeof ReportsRoute
+  '/users': typeof UsersRoute
   '/batches/$batchId': typeof BatchesBatchIdRoute
   '/recipes/$recipeId': typeof RecipesRecipeIdRoute
   '/batches/': typeof BatchesIndexRoute
@@ -66,12 +102,33 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/batches/$batchId' | '/recipes/$recipeId' | '/batches/' | '/recipes/'
+    | '/'
+    | '/alarms'
+    | '/audit'
+    | '/reports'
+    | '/users'
+    | '/batches/$batchId'
+    | '/recipes/$recipeId'
+    | '/batches/'
+    | '/recipes/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/batches/$batchId' | '/recipes/$recipeId' | '/batches' | '/recipes'
+  to:
+    | '/'
+    | '/alarms'
+    | '/audit'
+    | '/reports'
+    | '/users'
+    | '/batches/$batchId'
+    | '/recipes/$recipeId'
+    | '/batches'
+    | '/recipes'
   id:
     | '__root__'
     | '/'
+    | '/alarms'
+    | '/audit'
+    | '/reports'
+    | '/users'
     | '/batches/$batchId'
     | '/recipes/$recipeId'
     | '/batches/'
@@ -80,6 +137,10 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AlarmsRoute: typeof AlarmsRoute
+  AuditRoute: typeof AuditRoute
+  ReportsRoute: typeof ReportsRoute
+  UsersRoute: typeof UsersRoute
   BatchesBatchIdRoute: typeof BatchesBatchIdRoute
   RecipesRecipeIdRoute: typeof RecipesRecipeIdRoute
   BatchesIndexRoute: typeof BatchesIndexRoute
@@ -93,6 +154,34 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/alarms': {
+      id: '/alarms'
+      path: '/alarms'
+      fullPath: '/alarms'
+      preLoaderRoute: typeof AlarmsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audit': {
+      id: '/audit'
+      path: '/audit'
+      fullPath: '/audit'
+      preLoaderRoute: typeof AuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users': {
+      id: '/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/batches/': {
@@ -128,6 +217,10 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AlarmsRoute: AlarmsRoute,
+  AuditRoute: AuditRoute,
+  ReportsRoute: ReportsRoute,
+  UsersRoute: UsersRoute,
   BatchesBatchIdRoute: BatchesBatchIdRoute,
   RecipesRecipeIdRoute: RecipesRecipeIdRoute,
   BatchesIndexRoute: BatchesIndexRoute,
