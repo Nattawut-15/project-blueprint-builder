@@ -4,7 +4,7 @@ import { AppShell } from "@/components/mixing/AppShell";
 import { BatchBadge, Panel, fmtTime } from "@/components/mixing/bits";
 import { useSimState } from "@/lib/mixing/store";
 
-export const Route = createFileRoute("/batches")({
+export const Route = createFileRoute("/batches/")({
   head: () => ({
     meta: [
       { title: "Batch การผลิต — Smart Mixing Control" },

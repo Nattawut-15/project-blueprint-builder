@@ -4,7 +4,7 @@ import { AppShell } from "@/components/mixing/AppShell";
 import { Panel, RecipeBadge, fmtTime } from "@/components/mixing/bits";
 import { actions, useSimState } from "@/lib/mixing/store";
 
-export const Route = createFileRoute("/recipes")({
+export const Route = createFileRoute("/recipes/")({
   head: () => ({
     meta: [
       { title: "สูตรการผสม — Smart Mixing Control" },
