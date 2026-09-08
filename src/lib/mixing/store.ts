@@ -1,5 +1,12 @@
 import { useSyncExternalStore } from "react";
-import { equipmentSeed, historyBatches, recipes as recipeSeed, seedAlarms, seedAudit, users } from "./seed";
+import {
+  equipmentSeed,
+  historyBatches,
+  recipes as recipeSeed,
+  seedAlarms,
+  seedAudit,
+  users,
+} from "./seed";
 import type { Alarm, AuditEntry, Batch, Equipment, Recipe, StepLog } from "./types";
 
 export type SimState = {
@@ -14,6 +21,16 @@ export type SimState = {
 };
 
 const TICK_MS = 500;
+const STORAGE_KEY = "project-blueprint-builder:mixing-store:v1";
+const STORAGE_VERSION = 1;
+
+type StoredSimData = {
+  version?: unknown;
+  state?: Partial<SimState>;
+  seq?: unknown;
+  alarmSeq?: unknown;
+  auditSeq?: unknown;
+};
 
 function nowIso() {
   return new Date().toISOString();
@@ -24,17 +41,20 @@ function pad(n: number) {
 }
 
 function makeSteps(recipe: Recipe): StepLog[] {
-  return recipe.steps.map((s) => ({
-    no: s.no,
-    action: s.action,
-    type: s.type,
-    target: s.target,
-    unit: s.unit,
-    tolerance: s.tolerance,
-    actual: s.type === "temp" ? 31.5 : 0,
-    progress: 0,
-    status: "waiting" as const,
-  }));
+  return recipe.steps.map((s) => {
+    const step: StepLog = {
+      no: s.no,
+      action: s.action,
+      type: s.type,
+      target: s.target,
+      unit: s.unit,
+      actual: s.type === "temp" ? 31.5 : 0,
+      progress: 0,
+      status: "waiting",
+    };
+    if (s.tolerance !== undefined) step.tolerance = s.tolerance;
+    return step;
+  });
 }
 
 let seq = 4;
@@ -62,7 +82,9 @@ function createBatch(recipe: Recipe, operator: string): Batch {
 let alarmSeq = 9100;
 function alarm(level: Alarm["level"], source: string, message: string, batchNo?: string): Alarm {
   alarmSeq += 1;
-  return { id: `A-${alarmSeq}`, at: nowIso(), level, source, message, batchNo };
+  const entry: Alarm = { id: `A-${alarmSeq}`, at: nowIso(), level, source, message };
+  if (batchNo !== undefined) entry.batchNo = batchNo;
+  return entry;
 }
 
 let auditSeq = 100;
@@ -71,19 +93,25 @@ function audit(user: string, role: AuditEntry["role"], action: string, detail: s
   return { id: `T-${auditSeq}`, at: nowIso(), user, role, action, detail };
 }
 
-let state: SimState = {
-  recipes: recipeSeed,
-  batches: historyBatches,
-  alarms: seedAlarms,
-  audit: seedAudit,
-  equipment: equipmentSeed,
-  activeBatchId: null,
-  clock: 0,
-  emergency: false,
-};
+function createInitialState(): SimState {
+  return {
+    recipes: recipeSeed,
+    batches: historyBatches,
+    alarms: seedAlarms,
+    audit: seedAudit,
+    equipment: equipmentSeed,
+    activeBatchId: null,
+    clock: 0,
+    emergency: false,
+  };
+}
+
+let state: SimState = createInitialState();
 
 const listeners = new Set<() => void>();
 let timer: ReturnType<typeof setInterval> | null = null;
+let storageHydrated = false;
+let storageListenerAttached = false;
 
 function emit() {
   listeners.forEach((l) => l());
@@ -91,7 +119,112 @@ function emit() {
 
 function set(patch: Partial<SimState>) {
   state = { ...state, ...patch };
+  saveStateToStorage();
   emit();
+}
+
+function normalizeStoredState(stored: Partial<SimState> | undefined): SimState | null {
+  if (!stored) return null;
+  const initial = createInitialState();
+  const activeBatchId =
+    typeof stored.activeBatchId === "string" || stored.activeBatchId === null
+      ? stored.activeBatchId
+      : null;
+  return {
+    recipes: Array.isArray(stored.recipes) ? stored.recipes : initial.recipes,
+    batches: Array.isArray(stored.batches) ? stored.batches : initial.batches,
+    alarms: Array.isArray(stored.alarms) ? stored.alarms : initial.alarms,
+    audit: Array.isArray(stored.audit) ? stored.audit : initial.audit,
+    equipment: Array.isArray(stored.equipment) ? stored.equipment : initial.equipment,
+    activeBatchId,
+    clock: typeof stored.clock === "number" ? stored.clock : initial.clock,
+    emergency: typeof stored.emergency === "boolean" ? stored.emergency : initial.emergency,
+  };
+}
+
+function maxNumericId(items: { id: string }[], prefix: string, fallback: number) {
+  return items.reduce((max, item) => {
+    if (!item.id.startsWith(prefix)) return max;
+    const value = Number(item.id.slice(prefix.length));
+    return Number.isFinite(value) ? Math.max(max, value) : max;
+  }, fallback);
+}
+
+function storedNumber(value: unknown, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function syncSequences(stored: StoredSimData, storedState: SimState) {
+  seq = Math.max(storedNumber(stored.seq, seq), maxNumericId(storedState.batches, "B-24", 4));
+  alarmSeq = Math.max(
+    storedNumber(stored.alarmSeq, alarmSeq),
+    maxNumericId(storedState.alarms, "A-", 9100),
+  );
+  auditSeq = Math.max(
+    storedNumber(stored.auditSeq, auditSeq),
+    maxNumericId(storedState.audit, "T-", 100),
+  );
+}
+
+function applyStoredData(raw: string) {
+  try {
+    const stored = JSON.parse(raw) as StoredSimData;
+    if (stored.version !== STORAGE_VERSION) return false;
+    const storedState = normalizeStoredState(stored.state);
+    if (!storedState) return false;
+    syncSequences(stored, storedState);
+    state = storedState;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function saveStateToStorage() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: STORAGE_VERSION,
+        state,
+        seq,
+        alarmSeq,
+        auditSeq,
+      }),
+    );
+  } catch {
+    return;
+  }
+}
+
+function hydrateFromStorage() {
+  if (typeof window === "undefined" || storageHydrated) return;
+  storageHydrated = true;
+
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw && applyStoredData(raw)) {
+      emit();
+    } else {
+      saveStateToStorage();
+    }
+  } catch {
+    return;
+  }
+
+  if (!storageListenerAttached) {
+    storageListenerAttached = true;
+    window.addEventListener("storage", (event) => {
+      if (
+        event.storageArea !== window.localStorage ||
+        event.key !== STORAGE_KEY ||
+        event.newValue === null
+      )
+        return;
+      if (applyStoredData(event.newValue)) emit();
+    });
+  }
 }
 
 // --- simulation engine -------------------------------------------------
@@ -109,7 +242,7 @@ function tick() {
   const idx = steps.findIndex((s) => s.no === batch.currentStep);
   const step = steps[idx];
   const newAlarms: Alarm[] = [];
-  let status = batch.status;
+  let status: Batch["status"] = batch.status;
   let endedAt = batch.endedAt;
   let currentStep = batch.currentStep;
 
@@ -173,7 +306,14 @@ function tick() {
       status = "completed";
       endedAt = nowIso();
       currentStep = step.no;
-      newAlarms.push(alarm("info", "ระบบ", `Batch ${batch.batchNo} ผลิตเสร็จสมบูรณ์ และบันทึก Batch Record แล้ว`, batch.batchNo));
+      newAlarms.push(
+        alarm(
+          "info",
+          "ระบบ",
+          `Batch ${batch.batchNo} ผลิตเสร็จสมบูรณ์ และบันทึก Batch Record แล้ว`,
+          batch.batchNo,
+        ),
+      );
     }
   }
 
@@ -182,7 +322,13 @@ function tick() {
   const weight = steps.filter((s) => s.type === "dose").reduce((a, s) => a + s.actual, 0);
   const temp = steps.find((s) => s.type === "temp")?.actual ?? 31.5 + (running ? 4 : 0);
 
-  const updated: Batch = { ...batch, steps, currentStep, status, endedAt };
+  const updated: Batch = {
+    ...batch,
+    steps,
+    currentStep,
+    status,
+    ...(endedAt !== undefined ? { endedAt } : {}),
+  };
   set({
     clock,
     batches: state.batches.map((b) => (b.id === batch.id ? updated : b)),
@@ -197,7 +343,12 @@ function recipeSpeed(batch: Batch, stepNo: number) {
   return recipe?.steps.find((s) => s.no === stepNo)?.speedRpm ?? 300;
 }
 
-function driftEquipment(running: boolean, speed: number, weight: number, temp?: number): Equipment[] {
+function driftEquipment(
+  running: boolean,
+  speed: number,
+  weight: number,
+  temp?: number,
+): Equipment[] {
   return state.equipment.map((e) => {
     const jitter = () => (Math.random() - 0.5) * 0.6;
     switch (e.id) {
@@ -220,7 +371,9 @@ function driftEquipment(running: boolean, speed: number, weight: number, temp?: 
 }
 
 function ensureTimer() {
-  if (typeof window === "undefined" || timer) return;
+  if (typeof window === "undefined") return;
+  hydrateFromStorage();
+  if (timer) return;
   timer = setInterval(tick, TICK_MS);
 }
 
@@ -233,7 +386,15 @@ export const actions = {
     const batch = createBatch(recipe, operator);
     set({
       batches: [batch, ...state.batches],
-      audit: [audit(operator, "operator", "สร้าง Batch", `${batch.batchNo} จากสูตร ${recipe.code} ${recipe.version}`), ...state.audit],
+      audit: [
+        audit(
+          operator,
+          "operator",
+          "สร้าง Batch",
+          `${batch.batchNo} จากสูตร ${recipe.code} ${recipe.version}`,
+        ),
+        ...state.audit,
+      ],
     });
     return batch;
   },
@@ -246,7 +407,10 @@ export const actions = {
       batches: state.batches.map((x) =>
         x.id === batchId ? { ...x, status: "running", startedAt: x.startedAt ?? nowIso() } : x,
       ),
-      alarms: [alarm("info", "ระบบ", `เริ่มเดินเครื่อง Batch ${b.batchNo}`, b.batchNo), ...state.alarms],
+      alarms: [
+        alarm("info", "ระบบ", `เริ่มเดินเครื่อง Batch ${b.batchNo}`, b.batchNo),
+        ...state.alarms,
+      ],
     });
   },
   pause(batchId: string) {
@@ -254,7 +418,10 @@ export const actions = {
     if (!b) return;
     set({
       batches: state.batches.map((x) => (x.id === batchId ? { ...x, status: "paused" } : x)),
-      alarms: [alarm("warning", "ระบบ", `พักการทำงาน Batch ${b.batchNo} โดยผู้ใช้งาน`, b.batchNo), ...state.alarms],
+      alarms: [
+        alarm("warning", "ระบบ", `พักการทำงาน Batch ${b.batchNo} โดยผู้ใช้งาน`, b.batchNo),
+        ...state.alarms,
+      ],
     });
   },
   abort(batchId: string, reason: string, user = "สมชาย ผลิตดี") {
@@ -265,8 +432,14 @@ export const actions = {
       batches: state.batches.map((x) =>
         x.id === batchId ? { ...x, status: "aborted", endedAt: nowIso(), abortReason: reason } : x,
       ),
-      alarms: [alarm("critical", "ระบบ", `ยกเลิก Batch ${b.batchNo}: ${reason}`, b.batchNo), ...state.alarms],
-      audit: [audit(user, "operator", "ยกเลิก Batch", `${b.batchNo} เหตุผล: ${reason}`), ...state.audit],
+      alarms: [
+        alarm("critical", "ระบบ", `ยกเลิก Batch ${b.batchNo}: ${reason}`, b.batchNo),
+        ...state.alarms,
+      ],
+      audit: [
+        audit(user, "operator", "ยกเลิก Batch", `${b.batchNo} เหตุผล: ${reason}`),
+        ...state.audit,
+      ],
     });
   },
   ackAlarm(id: string, user = "สมชาย ผลิตดี") {
@@ -275,7 +448,9 @@ export const actions = {
     });
   },
   ackAll(user = "สมชาย ผลิตดี") {
-    set({ alarms: state.alarms.map((a) => (a.ackBy ? a : { ...a, ackBy: user, ackAt: nowIso() })) });
+    set({
+      alarms: state.alarms.map((a) => (a.ackBy ? a : { ...a, ackBy: user, ackAt: nowIso() })),
+    });
   },
   emergencyStop() {
     const active = state.batches.find((b) => b.id === state.activeBatchId);
@@ -285,14 +460,28 @@ export const actions = {
       batches: active
         ? state.batches.map((x) => (x.id === active.id ? { ...x, status: "paused" } : x))
         : state.batches,
-      alarms: [alarm("critical", "Emergency Stop", "กด Emergency Stop — ระบบหยุดการจ่ายวัตถุดิบและ Mixer ทั้งหมด", active?.batchNo), ...state.alarms],
-      audit: [audit("สมชาย ผลิตดี", "operator", "Emergency Stop", "หยุดฉุกเฉินจากหน้าจอ Operator"), ...state.audit],
+      alarms: [
+        alarm(
+          "critical",
+          "Emergency Stop",
+          "กด Emergency Stop — ระบบหยุดการจ่ายวัตถุดิบและ Mixer ทั้งหมด",
+          active?.batchNo,
+        ),
+        ...state.alarms,
+      ],
+      audit: [
+        audit("สมชาย ผลิตดี", "operator", "Emergency Stop", "หยุดฉุกเฉินจากหน้าจอ Operator"),
+        ...state.audit,
+      ],
     });
   },
   resetEmergency() {
     set({
       emergency: false,
-      alarms: [alarm("info", "Emergency Stop", "รีเซ็ตสถานะหยุดฉุกเฉิน ระบบพร้อมทำงาน"), ...state.alarms],
+      alarms: [
+        alarm("info", "Emergency Stop", "รีเซ็ตสถานะหยุดฉุกเฉิน ระบบพร้อมทำงาน"),
+        ...state.alarms,
+      ],
     });
   },
   approveRecipe(recipeId: string, by = "พิมพ์ใจ คุณภาพ") {
@@ -302,7 +491,10 @@ export const actions = {
       recipes: state.recipes.map((x) =>
         x.id === recipeId ? { ...x, status: "approved", approvedBy: by, updatedAt: nowIso() } : x,
       ),
-      audit: [audit(by, "qa", "อนุมัติสูตร", `${r.code} ${r.version} ผ่านการอนุมัติ`), ...state.audit],
+      audit: [
+        audit(by, "qa", "อนุมัติสูตร", `${r.code} ${r.version} ผ่านการอนุมัติ`),
+        ...state.audit,
+      ],
     });
   },
 };
@@ -310,8 +502,9 @@ export const actions = {
 // --- hooks -------------------------------------------------------------
 
 function subscribe(cb: () => void) {
-  ensureTimer();
   listeners.add(cb);
+  hydrateFromStorage();
+  ensureTimer();
   return () => {
     listeners.delete(cb);
   };

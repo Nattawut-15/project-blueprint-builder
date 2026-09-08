@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AlarmsRouteImport } from './routes/alarms'
 import { Route as AuditRouteImport } from './routes/audit'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as SpecificGravityRouteImport } from './routes/specific-gravity'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as BatchesIndexRouteImport } from './routes/batches.index'
 import { Route as BatchesBatchIdRouteImport } from './routes/batches.$batchId'
@@ -37,6 +38,11 @@ const AuditRoute = AuditRouteImport.update({
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SpecificGravityRoute = SpecificGravityRouteImport.update({
+  id: '/specific-gravity',
+  path: '/specific-gravity',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UsersRoute = UsersRouteImport.update({
@@ -70,6 +76,7 @@ export interface FileRoutesByFullPath {
   '/alarms': typeof AlarmsRoute
   '/audit': typeof AuditRoute
   '/reports': typeof ReportsRoute
+  '/specific-gravity': typeof SpecificGravityRoute
   '/users': typeof UsersRoute
   '/batches/$batchId': typeof BatchesBatchIdRoute
   '/recipes/$recipeId': typeof RecipesRecipeIdRoute
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/alarms': typeof AlarmsRoute
   '/audit': typeof AuditRoute
   '/reports': typeof ReportsRoute
+  '/specific-gravity': typeof SpecificGravityRoute
   '/users': typeof UsersRoute
   '/batches/$batchId': typeof BatchesBatchIdRoute
   '/recipes/$recipeId': typeof RecipesRecipeIdRoute
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/alarms': typeof AlarmsRoute
   '/audit': typeof AuditRoute
   '/reports': typeof ReportsRoute
+  '/specific-gravity': typeof SpecificGravityRoute
   '/users': typeof UsersRoute
   '/batches/$batchId': typeof BatchesBatchIdRoute
   '/recipes/$recipeId': typeof RecipesRecipeIdRoute
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/alarms'
     | '/audit'
     | '/reports'
+    | '/specific-gravity'
     | '/users'
     | '/batches/$batchId'
     | '/recipes/$recipeId'
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/alarms'
     | '/audit'
     | '/reports'
+    | '/specific-gravity'
     | '/users'
     | '/batches/$batchId'
     | '/recipes/$recipeId'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/alarms'
     | '/audit'
     | '/reports'
+    | '/specific-gravity'
     | '/users'
     | '/batches/$batchId'
     | '/recipes/$recipeId'
@@ -140,6 +152,7 @@ export interface RootRouteChildren {
   AlarmsRoute: typeof AlarmsRoute
   AuditRoute: typeof AuditRoute
   ReportsRoute: typeof ReportsRoute
+  SpecificGravityRoute: typeof SpecificGravityRoute
   UsersRoute: typeof UsersRoute
   BatchesBatchIdRoute: typeof BatchesBatchIdRoute
   RecipesRecipeIdRoute: typeof RecipesRecipeIdRoute
@@ -175,6 +188,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/specific-gravity': {
+      id: '/specific-gravity'
+      path: '/specific-gravity'
+      fullPath: '/specific-gravity'
+      preLoaderRoute: typeof SpecificGravityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/users': {
@@ -220,6 +240,7 @@ const rootRouteChildren: RootRouteChildren = {
   AlarmsRoute: AlarmsRoute,
   AuditRoute: AuditRoute,
   ReportsRoute: ReportsRoute,
+  SpecificGravityRoute: SpecificGravityRoute,
   UsersRoute: UsersRoute,
   BatchesBatchIdRoute: BatchesBatchIdRoute,
   RecipesRecipeIdRoute: RecipesRecipeIdRoute,

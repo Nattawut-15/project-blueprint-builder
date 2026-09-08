@@ -2,17 +2,24 @@ import { cn } from "@/lib/utils";
 import type { AlarmLevel, BatchStatus, RecipeStatus } from "@/lib/mixing/types";
 import type { ReactNode } from "react";
 
-export function Panel({ title, right, children, className }: {
+export function Panel({
+  title,
+  right,
+  children,
+  className,
+}: {
   title?: string;
   right?: ReactNode;
   children: ReactNode;
-  className?: string;
+  className?: string | undefined;
 }) {
   return (
-    <section className={cn("panel p-4", className)}>
+    <section className={cn("panel p-6", className)}>
       {(title || right) && (
-        <div className="mb-3 flex items-center justify-between gap-3">
-          {title && <h2 className="label-caps">{title}</h2>}
+        <div className="mb-4 flex items-center justify-between gap-3">
+          {title && (
+            <h2 className="text-base font-semibold tracking-tight text-foreground">{title}</h2>
+          )}
           {right}
         </div>
       )}
@@ -31,17 +38,22 @@ const BATCH_TEXT: Record<BatchStatus, string> = {
 };
 
 const BATCH_TONE: Record<BatchStatus, string> = {
-  pending: "bg-secondary text-secondary-foreground",
-  running: "bg-info/15 text-info border-info/40",
-  paused: "bg-warning/15 text-warning border-warning/40",
-  completed: "bg-success/15 text-success border-success/40",
-  aborted: "bg-destructive/15 text-destructive border-destructive/40",
-  failed: "bg-destructive/15 text-destructive border-destructive/40",
+  pending: "bg-secondary text-muted-foreground border-border",
+  running: "bg-info/15 text-info border-transparent",
+  paused: "bg-warning/15 text-warning border-transparent",
+  completed: "bg-success/15 text-success border-transparent",
+  aborted: "bg-destructive/15 text-destructive border-transparent",
+  failed: "bg-destructive/15 text-destructive border-transparent",
 };
 
 export function BatchBadge({ status }: { status: BatchStatus }) {
   return (
-    <span className={cn("inline-flex items-center rounded-full border border-transparent px-2.5 py-0.5 text-xs font-medium", BATCH_TONE[status])}>
+    <span
+      className={cn(
+        "inline-flex items-center rounded-sm border px-3 py-1 text-xs font-semibold",
+        BATCH_TONE[status],
+      )}
+    >
       {BATCH_TEXT[status]}
     </span>
   );
@@ -55,15 +67,20 @@ const RECIPE_TEXT: Record<RecipeStatus, string> = {
 };
 
 const RECIPE_TONE: Record<RecipeStatus, string> = {
-  draft: "bg-secondary text-secondary-foreground",
-  pending: "bg-warning/15 text-warning border-warning/40",
-  approved: "bg-success/15 text-success border-success/40",
-  archived: "bg-muted text-muted-foreground",
+  draft: "bg-secondary text-muted-foreground border-border",
+  pending: "bg-warning/15 text-warning border-transparent",
+  approved: "bg-success/15 text-success border-transparent",
+  archived: "bg-muted text-muted-foreground border-transparent",
 };
 
 export function RecipeBadge({ status }: { status: RecipeStatus }) {
   return (
-    <span className={cn("inline-flex items-center rounded-full border border-transparent px-2.5 py-0.5 text-xs font-medium", RECIPE_TONE[status])}>
+    <span
+      className={cn(
+        "inline-flex items-center rounded-sm border px-3 py-1 text-xs font-semibold",
+        RECIPE_TONE[status],
+      )}
+    >
       {RECIPE_TEXT[status]}
     </span>
   );
@@ -83,13 +100,21 @@ export function AlarmBadge({ level }: { level: AlarmLevel }) {
         ? "bg-warning/15 text-warning"
         : "bg-info/15 text-info";
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", tone)}>
+    <span
+      className={cn("inline-flex items-center rounded-sm px-3 py-1 text-xs font-semibold", tone)}
+    >
       {ALARM_TEXT[level]}
     </span>
   );
 }
 
-export function Metric({ label, value, unit, tone = "default", hint }: {
+export function Metric({
+  label,
+  value,
+  unit,
+  tone = "default",
+  hint,
+}: {
   label: string;
   value: string | number;
   unit?: string;
@@ -103,10 +128,17 @@ export function Metric({ label, value, unit, tone = "default", hint }: {
     warning: "text-warning",
     danger: "text-destructive",
   }[tone];
+  const accentColor = {
+    default: "var(--border)",
+    info: "var(--info)",
+    success: "var(--success)",
+    warning: "var(--warning)",
+    danger: "var(--destructive)",
+  }[tone];
   return (
-    <div className="panel p-4">
+    <div className="panel border-l-4 p-6" style={{ borderLeftColor: accentColor }}>
       <p className="label-caps">{label}</p>
-      <p className={cn("hud-value mt-2 text-2xl font-semibold", toneClass)}>
+      <p className={cn("hud-value mt-3 text-3xl font-semibold tracking-tight", toneClass)}>
         {value}
         {unit && <span className="ml-1 text-sm font-normal text-muted-foreground">{unit}</span>}
       </p>
@@ -115,7 +147,13 @@ export function Metric({ label, value, unit, tone = "default", hint }: {
   );
 }
 
-export function Bar({ value, tone = "info" }: { value: number; tone?: "info" | "success" | "warning" | "danger" }) {
+export function Bar({
+  value,
+  tone = "info",
+}: {
+  value: number;
+  tone?: "info" | "success" | "warning" | "danger";
+}) {
   const bg = {
     info: "bg-info",
     success: "bg-success",
@@ -124,7 +162,10 @@ export function Bar({ value, tone = "info" }: { value: number; tone?: "info" | "
   }[tone];
   return (
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-      <div className={cn("h-full rounded-full transition-[width] duration-500", bg)} style={{ width: `${Math.min(100, Math.max(0, value * 100))}%` }} />
+      <div
+        className={cn("h-full rounded-full transition-[width] duration-500", bg)}
+        style={{ width: `${Math.min(100, Math.max(0, value * 100))}%` }}
+      />
     </div>
   );
 }
@@ -136,5 +177,9 @@ export function fmtTime(iso?: string) {
 
 export function fmtShort(iso?: string) {
   if (!iso) return "-";
-  return new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return new Date(iso).toLocaleTimeString("th-TH", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
