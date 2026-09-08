@@ -117,6 +117,79 @@
   box-shadow: 0 14px 40px oklch(0 0 0 / 0.18);
 }
 
+@utility holo-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid oklch(0.77 0.205 151 / 0.28);
+  background:
+    linear-gradient(145deg, oklch(0.26 0.033 202 / 0.92), oklch(0.16 0.028 202 / 0.9)),
+    radial-gradient(circle at 18% 0%, oklch(0.77 0.205 151 / 0.22), transparent 22rem);
+  box-shadow:
+    0 24px 70px oklch(0 0 0 / 0.36),
+    inset 0 1px 0 oklch(1 0 0 / 0.08);
+  transform-style: preserve-3d;
+}
+
+@utility holo-surface {
+  background:
+    linear-gradient(145deg, oklch(0.255 0.028 202 / 0.72), oklch(0.18 0.025 202 / 0.72)),
+    radial-gradient(circle at 100% 0%, oklch(0.77 0.205 151 / 0.12), transparent 18rem);
+  border: 1px solid oklch(0.77 0.205 151 / 0.16);
+  box-shadow:
+    0 16px 50px oklch(0 0 0 / 0.22),
+    inset 0 1px 0 oklch(1 0 0 / 0.06);
+}
+
+@utility futuristic-grid {
+  background-image:
+    linear-gradient(oklch(0.77 0.205 151 / 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.77 0.205 151 / 0.07) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(circle at center, black, transparent 72%);
+}
+
+@utility glow-button {
+  box-shadow:
+    0 0 0 1px oklch(0.77 0.205 151 / 0.22),
+    0 14px 34px oklch(0.77 0.205 151 / 0.22);
+}
+
+@utility tank-3d {
+  transform-style: preserve-3d;
+  transform: perspective(900px) rotateX(58deg) rotateZ(-36deg);
+}
+
+@keyframes mixOrbit {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes liquidPulse {
+  0%,
+  100% {
+    opacity: 0.76;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes statusGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 24px var(--status-color);
+  }
+  50% {
+    box-shadow: 0 0 44px var(--status-color);
+  }
+}
+
 @utility hud-value {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;

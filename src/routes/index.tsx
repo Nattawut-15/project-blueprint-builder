@@ -1,10 +1,68 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import type { CSSProperties } from "react";
 import { useState } from "react";
-import { AlertOctagon, CircleStop, Pause, Play, Plus } from "lucide-react";
+import { AlertOctagon, CircleStop, Cpu, Pause, Play, Plus, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/mixing/AppShell";
 import { AlarmBadge, Bar, BatchBadge, Metric, Panel, fmtShort } from "@/components/mixing/bits";
-import { actions, useSimState } from "@/lib/mixing/store";
+import { actions, useSimState, type SimState } from "@/lib/mixing/store";
 import { cn } from "@/lib/utils";
+
+type TankStatusKey = "running" | "stopped" | "waiting" | "fault" | "maintenance";
+
+const TANK_STATUS: Record<
+  TankStatusKey,
+  { label: string; detail: string; color: string; tone: string }
+> = {
+  running: {
+    label: "กำลังทำงาน",
+    detail: "ใบกวนและระบบจ่ายวัตถุดิบกำลังทำงาน",
+    color: "oklch(0.77 0.205 151)",
+    tone: "text-primary",
+  },
+  stopped: {
+    label: "หยุดเครื่อง",
+    detail: "ระบบถูกหยุดหรือถูกล็อกด้วย Emergency Stop",
+    color: "oklch(0.66 0.21 25)",
+    tone: "text-destructive",
+  },
+  waiting: {
+    label: "รอการผลิต",
+    detail: "พร้อมเริ่ม Batch แต่ยังไม่เดินเครื่อง",
+    color: "oklch(0.8 0.17 86)",
+    tone: "text-warning",
+  },
+  fault: {
+    label: "เครื่องจักรมีปัญหา",
+    detail: "พบอุปกรณ์สถานะ fault ต้องตรวจสอบทันที",
+    color: "oklch(0.66 0.21 25)",
+    tone: "text-destructive",
+  },
+  maintenance: {
+    label: "อยู่ระหว่างการซ่อมบำรุง",
+    detail: "อุปกรณ์บางรายการอยู่ในสถานะ warn/maintenance",
+    color: "oklch(0.685 0.169 237)",
+    tone: "text-info",
+  },
+};
+
+function getTankStatus({
+  emergency,
+  active,
+  pending,
+  equipment,
+}: {
+  emergency: boolean;
+  active: SimState["batches"][number] | undefined;
+  pending: SimState["batches"];
+  equipment: SimState["equipment"];
+}): TankStatusKey {
+  if (equipment.some((e) => e.status === "fault")) return "fault";
+  if (equipment.some((e) => e.status === "warn")) return "maintenance";
+  if (emergency || active?.status === "paused") return "stopped";
+  if (active?.status === "running") return "running";
+  if (pending.length > 0) return "waiting";
+  return "waiting";
+}
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -34,10 +92,13 @@ function OperatorConsole() {
   const active = batches.find((b) => b.id === activeBatchId);
   const pending = batches.filter((b) => b.status === "pending");
   const target = active ?? pending[0] ?? null;
+  const tankStatusKey = getTankStatus({ emergency, active, pending, equipment });
+  const tankStatus = TANK_STATUS[tankStatusKey];
   const currentStep = target?.steps.find((s) => s.no === target.currentStep) ?? null;
   const approved = recipes.filter((r) => r.status === "approved");
   const recentAlarms = alarms.slice(0, 5);
   const eq = (id: string) => equipment.find((e) => e.id === id);
+  const runningEquipment = equipment.filter((e) => e.value > 0).length;
   const doneSteps = target
     ? target.steps.filter((s) => s.status === "done" || s.status === "deviated").length
     : 0;
@@ -66,13 +127,167 @@ function OperatorConsole() {
         </div>
       }
     >
-      <div className="space-y-5">
+      <div className="space-y-6">
         {emergency && (
           <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             ระบบอยู่ในสถานะหยุดฉุกเฉิน — การจ่ายวัตถุดิบและ Mixer ถูกล็อกไว้ (Interlock)
             ต้องรีเซ็ตก่อนเริ่มผลิตใหม่
           </div>
         )}
+
+        <section className="holo-card rounded-2xl p-6 lg:p-7">
+          <div className="futuristic-grid pointer-events-none absolute inset-0 opacity-80" />
+          <div className="pointer-events-none absolute -right-16 -top-16 size-52 rounded-full bg-primary/20 blur-3xl" />
+          <div className="relative grid gap-6 lg:grid-cols-[1.25fr_0.75fr] lg:items-center">
+            <div>
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                <Sparkles className="size-3.5" /> FUTURISTIC PRODUCTION HUB
+              </div>
+              <h2 className="max-w-2xl text-3xl font-bold tracking-tight text-foreground md:text-5xl">
+                Project Dashboard สำหรับควบคุมการผสมแบบ 3D Realtime
+              </h2>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground md:text-base">
+                รวมสถานะ Batch, สูตรผลิต, เครื่องจักร และ Alarm ไว้ในหน้าจอเดียว พร้อมมุมมองแบบ
+                modern 3D UI ที่อ่านง่ายและเป็นระบบ
+              </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  onClick={() => target && actions.start(target.id)}
+                  disabled={
+                    !target ||
+                    emergency ||
+                    target.status === "running" ||
+                    target.status === "completed" ||
+                    target.status === "aborted"
+                  }
+                  className="glow-button inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground disabled:opacity-40"
+                >
+                  <Play className="size-4" /> Start Production
+                </button>
+                <Link
+                  to="/specific-gravity"
+                  className="inline-flex items-center gap-2 rounded-xl border border-primary/25 bg-secondary/70 px-5 py-3 text-sm font-semibold text-foreground hover:bg-secondary"
+                >
+                  ดูค่า ถ.พ
+                </Link>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+              <div className="holo-surface rounded-2xl p-4">
+                <p className="label-caps">Active Batch</p>
+                <p className="hud-value mt-2 text-2xl font-semibold text-primary">
+                  {active ? active.batchNo : target ? target.batchNo : "READY"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {active ? active.product : "รอเริ่มสายผลิต"}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="holo-surface rounded-2xl p-4">
+                  <p className="label-caps">Machines</p>
+                  <p className="hud-value mt-2 text-2xl font-semibold">
+                    {runningEquipment}/{equipment.length}
+                  </p>
+                </div>
+                <div className="holo-surface rounded-2xl p-4">
+                  <p className="label-caps">Recipes</p>
+                  <p className="hud-value mt-2 text-2xl font-semibold">{approved.length}</p>
+                </div>
+              </div>
+              <div className="holo-surface flex items-center gap-3 rounded-2xl p-4">
+                <div className="grid size-11 place-items-center rounded-xl bg-primary/15 text-primary">
+                  <Cpu className="size-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">System status</p>
+                  <p className={cn("text-xs", emergency ? "text-destructive" : "text-primary")}>
+                    {emergency ? "Emergency locked" : "Optimal / Ready"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <Panel title="ภาพจำลองกระบวนการผสมแบบ 3D" className="holo-surface">
+          <div className="grid gap-6 xl:grid-cols-[1fr_0.78fr] xl:items-center">
+            <div className="relative min-h-[360px] overflow-hidden rounded-2xl border border-primary/15 bg-background/50 p-6">
+              <div className="futuristic-grid pointer-events-none absolute inset-0 opacity-60" />
+              <div className="pointer-events-none absolute left-1/2 top-8 h-56 w-56 -translate-x-1/2 rounded-full bg-primary/15 blur-3xl" />
+              <div className="relative mx-auto mt-8 h-72 max-w-md">
+                <div className="tank-3d absolute left-1/2 top-24 h-48 w-64 -translate-x-1/2">
+                  <div className="absolute inset-x-8 -top-7 h-14 rounded-[50%] border border-primary/35 bg-[linear-gradient(145deg,oklch(0.34_0.04_202),oklch(0.16_0.026_202))] shadow-[0_18px_45px_oklch(0_0_0_/_0.35)]" />
+                  <div className="absolute inset-x-8 bottom-0 h-14 rounded-[50%] border border-primary/20 bg-[oklch(0.12_0.026_202)]" />
+                  <div className="absolute inset-x-8 top-0 h-40 rounded-b-[45%] border-x border-primary/25 bg-[linear-gradient(90deg,oklch(0.19_0.028_202),oklch(0.3_0.045_202),oklch(0.15_0.026_202))]" />
+                  <div
+                    className={cn(
+                      "absolute inset-x-12 top-8 h-24 rounded-[45%] border border-primary/30 bg-primary/35",
+                      tankStatusKey === "running" &&
+                        "animate-[liquidPulse_1.8s_ease-in-out_infinite]",
+                    )}
+                  />
+                  <div className="absolute left-1/2 top-[-46px] h-36 w-3 -translate-x-1/2 rounded-full bg-[linear-gradient(180deg,oklch(0.82_0.02_202),oklch(0.28_0.02_202))]" />
+                  <div
+                    className={cn(
+                      "absolute left-1/2 top-10 h-24 w-24 -translate-x-1/2 rounded-full border-4 border-primary/60 border-t-transparent",
+                      tankStatusKey === "running" && "animate-[mixOrbit_1.2s_linear_infinite]",
+                    )}
+                  />
+                  <div className="absolute left-1/2 top-20 h-2 w-36 -translate-x-1/2 rounded-full bg-primary/50" />
+                </div>
+                <div
+                  className="absolute bottom-2 left-1/2 size-28 -translate-x-1/2 rounded-full opacity-50 blur-2xl animate-[statusGlow_2s_ease-in-out_infinite]"
+                  style={{ "--status-color": tankStatus.color } as CSSProperties}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-primary/20 bg-card/70 p-5">
+                <p className="label-caps">สถานะถังผสม</p>
+                <div className="mt-3 flex items-center gap-3">
+                  <span
+                    className="size-3 rounded-full animate-pulse"
+                    style={{ backgroundColor: tankStatus.color }}
+                  />
+                  <p className={cn("text-2xl font-bold", tankStatus.tone)}>{tankStatus.label}</p>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">{tankStatus.detail}</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <Field label="Batch" value={target?.batchNo ?? "รอสร้าง Batch"} mono />
+                  <Field label="Step" value={currentStep?.action ?? "ยังไม่เริ่มขั้นตอน"} />
+                </div>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(Object.keys(TANK_STATUS) as TankStatusKey[]).map((key) => {
+                  const item = TANK_STATUS[key];
+                  return (
+                    <div
+                      key={key}
+                      className={cn(
+                        "rounded-xl border bg-card/55 p-3 text-sm",
+                        key === tankStatusKey
+                          ? "border-primary/60 shadow-[0_0_24px_oklch(0.77_0.205_151_/_0.16)]"
+                          : "border-border/70",
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="size-2 rounded-full"
+                          style={{ backgroundColor: item.color }}
+                        />
+                        <span className="font-semibold">{item.label}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">{item.detail}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </Panel>
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Metric
@@ -108,7 +323,7 @@ function OperatorConsole() {
           <div className="space-y-5">
             <Panel
               title="ขั้นตอนการผสมปัจจุบัน"
-              className={active?.status === "running" ? "scan-live" : undefined}
+              className={cn("holo-surface", active?.status === "running" && "scan-live")}
               right={target ? <BatchBadge status={target.status} /> : null}
             >
               {!target ? (
@@ -132,7 +347,7 @@ function OperatorConsole() {
                   </div>
 
                   {currentStep && target.status !== "completed" && (
-                    <div className="mb-4 rounded-md border border-info/40 bg-info/10 p-3 text-sm">
+                    <div className="mb-4 rounded-xl border border-info/40 bg-info/10 p-4 text-sm shadow-[inset_0_1px_0_oklch(1_0_0_/_0.06)]">
                       <p className="label-caps mb-1">คำแนะนำขั้นตอนที่ {currentStep.no}</p>
                       <p className="font-medium">{currentStep.action}</p>
                       <p className="mt-1 text-muted-foreground">
@@ -149,10 +364,10 @@ function OperatorConsole() {
                       <li
                         key={s.no}
                         className={cn(
-                          "rounded-md border border-border/70 bg-card/60 p-3",
+                          "holo-surface rounded-xl p-3 transition-transform duration-300 hover:-translate-y-0.5",
                           s.no === target.currentStep &&
                             target.status === "running" &&
-                            "border-info/60 bg-info/5",
+                            "border-info/60 bg-info/10",
                         )}
                       >
                         <div className="flex flex-wrap items-center gap-3">
@@ -268,12 +483,12 @@ function OperatorConsole() {
           </div>
 
           <div className="space-y-5">
-            <Panel title="สร้าง Batch ใหม่">
+            <Panel title="สร้าง Batch ใหม่" className="holo-surface">
               <label className="label-caps mb-1 block">เลือกสูตรที่อนุมัติแล้ว</label>
               <select
                 value={recipeId}
                 onChange={(e) => setRecipeId(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                className="w-full rounded-xl border border-input bg-background/70 px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-ring"
               >
                 {approved.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -283,7 +498,7 @@ function OperatorConsole() {
               </select>
               <button
                 onClick={() => actions.createBatch(recipeId, "สมชาย ผลิตดี")}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+                className="glow-button mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground"
               >
                 <Plus className="size-4" /> สร้าง Batch
               </button>
@@ -292,12 +507,12 @@ function OperatorConsole() {
               </p>
             </Panel>
 
-            <Panel title="สถานะอุปกรณ์">
+            <Panel title="สถานะอุปกรณ์" className="holo-surface">
               <ul className="space-y-2">
                 {equipment.map((e) => (
                   <li
                     key={e.id}
-                    className="flex items-center gap-3 rounded-md bg-card/60 px-3 py-2 text-sm"
+                    className="flex items-center gap-3 rounded-xl border border-border/70 bg-card/60 px-3 py-2.5 text-sm shadow-[inset_0_1px_0_oklch(1_0_0_/_0.04)]"
                   >
                     <span
                       className={cn(
@@ -311,7 +526,7 @@ function OperatorConsole() {
                     />
                     <span className="min-w-0 flex-1 truncate">{e.name}</span>
                     <span className="hud-value text-muted-foreground">{e.id}</span>
-                    <span className="hud-value w-20 text-right">
+                    <span className="hud-value w-20 text-right text-primary">
                       {e.value} {e.unit}
                     </span>
                   </li>
@@ -321,6 +536,7 @@ function OperatorConsole() {
 
             <Panel
               title="การแจ้งเตือนล่าสุด"
+              className="holo-surface"
               right={
                 <Link to="/alarms" className="text-xs text-info hover:underline">
                   ดูทั้งหมด
@@ -329,7 +545,10 @@ function OperatorConsole() {
             >
               <ul className="space-y-2">
                 {recentAlarms.map((a) => (
-                  <li key={a.id} className="rounded-md bg-card/60 p-3 text-sm">
+                  <li
+                    key={a.id}
+                    className="rounded-xl border border-border/70 bg-card/60 p-3 text-sm"
+                  >
                     <div className="mb-1 flex items-center gap-2">
                       <AlarmBadge level={a.level} />
                       <span className="hud-value text-xs text-muted-foreground">
@@ -351,7 +570,7 @@ function OperatorConsole() {
 
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="rounded-md bg-card/60 px-3 py-2">
+    <div className="rounded-xl border border-border/70 bg-card/60 px-3 py-2 shadow-[inset_0_1px_0_oklch(1_0_0_/_0.04)]">
       <p className="label-caps">{label}</p>
       <p className={cn("mt-0.5 truncate text-sm", mono && "hud-value")}>{value}</p>
     </div>
